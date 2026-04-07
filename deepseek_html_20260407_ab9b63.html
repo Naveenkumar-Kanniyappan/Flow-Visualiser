@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Visualizer Pro | Import & Visualize JSON Workflows</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #0a0e1a;
+            --bg-card: #111827;
+            --bg-node: #1a2332;
+            --accent-cyan: #00e5ff;
+            --accent-purple: #b74bff;
+            --accent-pink: #ff477e;
+            --accent-green: #00e676;
+            --accent-orange: #ff9800;
+            --text-primary: #f0f3fa;
+            --text-secondary: #9aa4bf;
+            --border-color: #1f2a3e;
+            --success: #00e676;
+            --warning: #ff9800;
+            --error: #ff477e;
+            --info: #00e5ff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #0c1222 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(0, 229, 255, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(183, 75, 255, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            animation: fadeInDown 0.6s ease;
+        }
+
+        .glow-text {
+            font-size: 2.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple), var(--accent-pink));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        /* File Import Section */
+        .import-section {
+            background: var(--bg-card);
+            border-radius: 24px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+        }
+
+        .drop-zone {
+            border: 2px dashed rgba(0, 229, 255, 0.3);
+            border-radius: 20px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(0, 229, 255, 0.02);
+        }
+
+        .drop-zone.drag-over {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 229, 255, 0.05);
+            transform: scale(1.01);
+        }
+
+        .drop-zone .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .file-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .file-chip {
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 40px;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-chip:hover {
+            background: rgba(0, 229, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .file-chip.active {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            color: var(--bg-dark);
+            border-color: transparent;
+        }
+
+        .remove-file {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 1rem;
+            opacity: 0.7;
+        }
+
+        /* Workflow Viewer */
+        .workflow-viewer {
+            display: none;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        .workflow-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .workflow-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .stats {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .stat {
+            background: var(--bg-node);
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+        }
+
+        /* Flowchart Style */
+        .flowchart {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            position: relative;
+        }
+
+        .flow-node {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .flow-node::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: -20px;
+            width: 2px;
+            height: 20px;
+            background: linear-gradient(180deg, var(--accent-cyan), var(--accent-purple));
+            transform: translateX(-50%);
+        }
+
+        .flow-node:first-child::before {
+            display: none;
+        }
+
+        .node-card {
+            background: var(--bg-node);
+            border-radius: 16px;
+            padding: 1rem 1.5rem;
+            border-left: 4px solid var(--accent-cyan);
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .node-card:hover {
+            transform: translateX(8px);
+            box-shadow: 0 5px 20px rgba(0, 229, 255, 0.15);
+        }
+
+        .node-card.expanded {
+            background: rgba(26, 35, 50, 0.9);
+        }
+
+        .node-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .node-badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .node-badge.initialize_variable { background: var(--info); color: var(--bg-dark); }
+        .node-badge.modify_variable { background: var(--success); color: var(--bg-dark); }
+        .node-badge.if, .node-badge.elif, .node-badge.else { background: var(--warning); color: var(--bg-dark); }
+        .node-badge.for { background: var(--accent-purple); color: white; }
+        .node-badge.snippet { background: #7c4dff; color: white; }
+        .node-badge.sql { background: #00acc1; color: white; }
+        .node-badge.console { background: #546e7a; color: white; }
+        .node-badge.steps { background: #ff6d00; color: white; }
+        .node-badge.endpoint { background: #ec407a; color: white; }
+        .node-badge.try { background: #26a69a; color: white; }
+        .node-badge.except { background: var(--error); color: white; }
+        .node-badge.incrementer { background: #ab47bc; color: white; }
+        .node-badge.logs { background: #42a5f5; color: white; }
+        .node-badge.get_timezone { background: #ffa726; color: white; }
+
+        .node-name {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .node-condition {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .node-details {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            display: none;
+        }
+
+        .node-card.expanded .node-details {
+            display: block;
+        }
+
+        .children-container {
+            margin-left: 2rem;
+            margin-top: 0.5rem;
+            padding-left: 1rem;
+            border-left: 2px dashed var(--border-color);
+        }
+
+        .arrow-down {
+            text-align: center;
+            color: var(--accent-cyan);
+            font-size: 1.2rem;
+            margin: 0.25rem 0;
+        }
+
+        /* Conditional colors */
+        .node-card.if { border-left-color: var(--warning); }
+        .node-card.elif { border-left-color: var(--warning); }
+        .node-card.else { border-left-color: var(--warning); }
+        .node-card.for { border-left-color: var(--accent-purple); }
+        .node-card.try { border-left-color: var(--success); }
+        .node-card.except { border-left-color: var(--error); }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .tab-btn:hover {
+            background: rgba(0, 229, 255, 0.1);
+            color: var(--accent-cyan);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            color: var(--bg-dark);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* Config panel */
+        .config-panel {
+            background: var(--bg-node);
+            border-radius: 16px;
+            padding: 1rem;
+        }
+
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Animations */
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            .glow-text { font-size: 1.8rem; }
+            .children-container { margin-left: 0.5rem; }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-dark);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-cyan);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="glow-text">⚡ Workflow Visualizer Pro</h1>
+            <p class="subtitle">Import JSON files • Visualize step-by-step • Like a flowchart</p>
+        </div>
+
+        <div class="import-section">
+            <div id="dropZone" class="drop-zone" onclick="document.getElementById('fileInput').click()">
+                <div class="icon">📁📂</div>
+                <h3>Drag & Drop JSON Files Here</h3>
+                <p>or click to select files</p>
+                <small style="color: var(--text-secondary);">Supports: DB Dump, snippets, workflow JSONs</small>
+            </div>
+            <input type="file" id="fileInput" multiple accept=".json" style="display: none" onchange="handleFiles(this.files)">
+            
+            <div id="fileList" class="file-list"></div>
+        </div>
+
+        <div id="workflowViewer" class="workflow-viewer">
+            <div class="workflow-header">
+                <h2 id="currentTitle" class="workflow-title"></h2>
+                <div id="stats" class="stats"></div>
+            </div>
+            
+            <div id="tabsContainer" class="tabs"></div>
+            <div id="tabContents"></div>
+        </div>
+    </div>
+
+    <script>
+        let loadedFiles = [];
+        let currentFileIndex = 0;
+
+        // Predefined sample files data (from your JSONs)
+        const sampleFiles = {
+            "DB_Dump.json": {
+                name: "DB Dump",
+                description: "Database dumping workflow with chunking and error handling",
+                flows: [
+                    { node: "steps", name: "Initial Step" },
+                    { node: "get_timezone", name: "ls_time", format: "%Y/%m/%d %I:%M:%S %p" },
+                    { node: "snippet", snippet: "12Hrs_to_24Hrs_time_format" },
+                    { node: "initialize_variable", name: "table_names", value: { value: "table_name.split(',')" } },
+                    { node: "snippet", snippet: "dump_db" },
+                    { node: "console", message: { value: "result" }, comment: true }
+                ],
+                snippets: {
+                    "12Hrs_to_24Hrs_time_format": [
+                        { node: "initialize_variable", name: "ls_time", value: { value: "ls_time.split()" } },
+                        { node: "initialize_variable", name: "date", value: { value: "ls_time[0].replace('/', '-')" } },
+                        { node: "initialize_variable", name: "time", value: { value: "ls_time[1] + ' ' + ls_time[2]" } },
+                        { node: "if", condition: "time[-2:] == 'AM' and time[:2] == '12'", children: [
+                            { node: "initialize_variable", name: "time", value: { value: "'00' + time[2:-2]" } }
+                        ] },
+                        { node: "elif", condition: "time[-2:] == 'AM'", children: [
+                            { node: "initialize_variable", name: "time", value: { value: "time[:-2]" } }
+                        ] },
+                        { node: "elif", condition: "time[-2:] == 'PM' and time[:2] == '12'", children: [
+                            { node: "initialize_variable", name: "time", value: { value: "time[:-2]" } }
+                        ] },
+                        { node: "else", children: [
+                            { node: "initialize_variable", name: "time", value: { value: "str(int(time[:2]) + 12) + time[2:8]" } }
+                        ] },
+                        { node: "initialize_variable", name: "datetime_formated", value: { value: "date + ' ' + time" } }
+                    ],
+                    "dump_db": [
+                        { node: "initialize_variable", name: "field_names", value: { value: "table_names" } },
+                        { node: "for", key: "table", condition: "field_names", children: [
+                            { node: "sql", action: "select", table: { value: "table" }, variable: "table_column_names" },
+                            { node: "initialize_variable", name: "condition", value: { value: "\"{} >= '{}'\".format(param[0], datetime_formated)" } },
+                            { node: "sql", action: "select", condition: { value: "condition" }, variable: "sql" },
+                            { node: "snippet", snippet: "handle_bytes" },
+                            { node: "if", condition: "'ISDEL' in table_column_names", children: [
+                                { node: "snippet", snippet: "handle_is_del" }
+                            ] },
+                            { node: "if", condition: "not sql", children: [
+                                { node: "console", message: { value: "DATA IS EMPTY" } }
+                            ] },
+                            { node: "else", children: [
+                                { node: "incrementer", value: "len(sql)", variable: "total_records" },
+                                { node: "snippet", snippet: "handle_dump" }
+                            ] }
+                        ] },
+                        { node: "steps", name: "Final Step" },
+                        { node: "snippet", snippet: "handle_log" }
+                    ],
+                    "handle_bytes": [
+                        { node: "initialize_variable", name: "byte_to_str", value: { value: "[]" } },
+                        { node: "for", key: "val", condition: "table_column_names", children: [
+                            { node: "if", condition: "type(val) is bytes", children: [
+                                { node: "modify_variable", action: "append", name: "byte_to_str", value: { value: "val.decode('utf-8').upper()" } }
+                            ] },
+                            { node: "else", children: [
+                                { node: "modify_variable", action: "append", name: "byte_to_str", value: { value: "val.upper()" } }
+                            ] }
+                        ] },
+                        { node: "initialize_variable", name: "table_column_names", value: { value: "byte_to_str" } }
+                    ],
+                    "handle_dump": [
+                        { node: "initialize_variable", name: "small_chunk", value: { value: "[]" } },
+                        { node: "steps", name: "Chunking Data" },
+                        { node: "for", key: "item", condition: "range(0,len(sql),chunk_size)", children: [
+                            { node: "modify_variable", action: "append", name: "small_chunk", value: { value: "sql[item:item + chunk_size]" } }
+                        ] },
+                        { node: "try", children: [
+                            { node: "for", key: "item", condition: "small_chunk", children: [
+                                { node: "initialize_variable", name: "m2_table_name", value: { value: "\"cym_{}\".format(table)" } },
+                                { node: "sql", action: "replace", table: { value: "m2_table_name" }, variable: "upsert" },
+                                { node: "if", condition: "'successfully' in str(upsert).lower()", children: [
+                                    { node: "incrementer", value: "len(item)", variable: "records_processed" }
+                                ] }
+                            ] }
+                        ], except: { type: "Exception", variable: "e", children: [
+                            { node: "modify_variable", action: "append", name: "error", value: { value: "e" } },
+                            { node: "console", message: { value: "e" } }
+                        ] } }
+                    ],
+                    "handle_is_del": [
+                        { node: "initialize_variable", name: "id_del_index", value: { value: "table_column_names.index('ISDEL')" } },
+                        { node: "initialize_variable", name: "is_del_removed", value: { value: "[]" } },
+                        { node: "for", key: "value", condition: "sql", children: [
+                            { node: "if", condition: "value[id_del_index] != 'y' and value[id_del_index] != 'Y'", children: [
+                                { node: "modify_variable", action: "append", name: "is_del_removed", value: { value: "value" } }
+                            ] }
+                        ] },
+                        { node: "modify_variable", action: "remove", name: "table_column_names", value: { value: "ISDEL" } }
+                    ],
+                    "handle_log": [
+                        { node: "for", key: "val", condition: "range(0, len(table_names))", children: [
+                            { node: "initialize_variable", name: "entity_id", value: { value: "field_names[val] + ' Updated'" } },
+                            { node: "logs", type: "success", message: { value: "Synchronized" } }
+                        ] }
+                    ]
+                },
+                config: [
+                    { label: "Table Name", key: "table_name", type: "text", default: "", hints: "Table1,Table2,..." },
+                    { label: "Chunk Size", key: "chunk_size", type: "int", default: "10" }
+                ]
+            },
+            "12Hrs_to_24Hrs_time_format.json": {
+                name: "12Hrs to 24Hrs Time Format",
+                description: "Convert 12-hour time format to 24-hour format",
+                flows: [
+                    { node: "initialize_variable", name: "ls_time", value: { value: "ls_time.split()" } },
+                    { node: "initialize_variable", name: "date", value: { value: "ls_time[0].replace('/', '-')" } },
+                    { node: "initialize_variable", name: "time", value: { value: "ls_time[1] + ' ' + ls_time[2]" } },
+                    { node: "if", condition: "time[-2:] == 'AM' and time[:2] == '12'", children: [
+                        { node: "initialize_variable", name: "time", value: { value: "'00' + time[2:-2]" } }
+                    ] },
+                    { node: "elif", condition: "time[-2:] == 'AM'", children: [
+                        { node: "initialize_variable", name: "time", value: { value: "time[:-2]" } }
+                    ] },
+                    { node: "elif", condition: "time[-2:] == 'PM' and time[:2] == '12'", children: [
+                        { node: "initialize_variable", name: "time", value: { value: "time[:-2]" } }
+                    ] },
+                    { node: "else", children: [
+                        { node: "initialize_variable", name: "time", value: { value: "str(int(time[:2]) + 12) + time[2:8]" } }
+                    ] },
+                    { node: "initialize_variable", name: "datetime_formated", value: { value: "date + ' ' + time" } },
+                    { node: "modify_variable", action: "assign", name: "datetime_formated", value: { value: "datetime_formated.strip()" } }
+                ]
+            }
+        };
+
+        function handleFiles(files) {
+            for (let file of files) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        const fileName = file.name;
+                        loadedFiles.push({
+                            name: fileName,
+                            data: json,
+                            parsed: parseWorkflowData(json)
+                        });
+                        updateFileList();
+                        if (loadedFiles.length === 1) {
+                            displayWorkflow(0);
+                        }
+                    } catch (err) {
+                        console.error("Error parsing", file.name, err);
+                        showToast(`Error parsing ${file.name}: ${err.message}`, "error");
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function parseWorkflowData(json) {
+            // Handle DB Dump format (has flow object)
+            if (json.flow) {
+                let flows = [];
+                if (typeof json.flow.flows === 'string') {
+                    try { flows = JSON.parse(json.flow.flows); } catch(e) { flows = []; }
+                } else if (Array.isArray(json.flow.flows)) {
+                    flows = json.flow.flows;
+                }
+                
+                let config = [];
+                if (json.flow.configuration) {
+                    try { config = JSON.parse(json.flow.configuration); } catch(e) {}
+                }
+                
+                return {
+                    name: json.flow.name || "Workflow",
+                    description: json.flow.description || "",
+                    flows: flows,
+                    snippets: json.flow.snippets || {},
+                    config: config,
+                    systems: json.flow.systems || []
+                };
+            }
+            
+            // Handle snippet@ format
+            if (json['snippet@']) {
+                return {
+                    name: "Snippet",
+                    description: "Code snippet workflow",
+                    flows: json['snippet@'],
+                    snippets: {},
+                    config: []
+                };
+            }
+            
+            // Handle array format
+            if (Array.isArray(json)) {
+                return {
+                    name: "Workflow",
+                    description: "Workflow steps",
+                    flows: json,
+                    snippets: {},
+                    config: []
+                };
+            }
+            
+            // Handle object with steps
+            if (json.steps) {
+                return {
+                    name: json.name || "Workflow",
+                    description: json.description || "",
+                    flows: json.steps,
+                    snippets: {},
+                    config: []
+                };
+            }
+            
+            return {
+                name: "Unknown",
+                description: "Unknown format",
+                flows: [],
+                snippets: {},
+                config: []
+            };
+        }
+
+        function updateFileList() {
+            const container = document.getElementById('fileList');
+            container.innerHTML = loadedFiles.map((file, idx) => `
+                <div class="file-chip ${idx === currentFileIndex ? 'active' : ''}" onclick="displayWorkflow(${idx})">
+                    📄 ${file.name}
+                    <button class="remove-file" onclick="event.stopPropagation(); removeFile(${idx})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function removeFile(index) {
+            loadedFiles.splice(index, 1);
+            if (loadedFiles.length === 0) {
+                document.getElementById('workflowViewer').style.display = 'none';
+                currentFileIndex = 0;
+            } else {
+                currentFileIndex = Math.min(currentFileIndex, loadedFiles.length - 1);
+                displayWorkflow(currentFileIndex);
+            }
+            updateFileList();
+        }
+
+        function displayWorkflow(index) {
+            currentFileIndex = index;
+            const file = loadedFiles[index];
+            if (!file) return;
+            
+            const data = file.parsed;
+            document.getElementById('workflowViewer').style.display = 'block';
+            document.getElementById('currentTitle').innerHTML = `📊 ${data.name}`;
+            
+            const statsHtml = `
+                <div class="stat">📋 ${data.flows.length} steps</div>
+                <div class="stat">📦 ${Object.keys(data.snippets).length} snippets</div>
+                <div class="stat">⚙️ ${data.config.length} configs</div>
+            `;
+            document.getElementById('stats').innerHTML = statsHtml;
+            
+            // Build tabs
+            const tabsContainer = document.getElementById('tabsContainer');
+            const tabContents = document.getElementById('tabContents');
+            
+            const tabs = [
+                { id: 'main', label: '📊 Main Flow', content: renderFlowchart(data.flows) },
+                ...(Object.keys(data.snippets).length > 0 ? [{ id: 'snippets', label: `🔧 Snippets (${Object.keys(data.snippets).length})`, content: renderSnippets(data.snippets) }] : []),
+                ...(data.config.length > 0 ? [{ id: 'config', label: '⚙️ Configuration', content: renderConfig(data.config) }] : [])
+            ];
+            
+            tabsContainer.innerHTML = tabs.map((tab, i) => `
+                <button class="tab-btn ${i === 0 ? 'active' : ''}" onclick="switchTab(${i})">${tab.label}</button>
+            `).join('');
+            
+            tabContents.innerHTML = tabs.map((tab, i) => `
+                <div class="tab-content ${i === 0 ? 'active' : ''}" id="tab-${i}">
+                    ${tab.content}
+                </div>
+            `).join('');
+            
+            updateFileList();
+        }
+
+        function renderFlowchart(nodes, depth = 0) {
+            if (!nodes || nodes.length === 0) return '<div style="color: var(--text-secondary);">No steps to display</div>';
+            
+            let html = '<div class="flowchart">';
+            nodes.forEach((node, idx) => {
+                const nodeType = node.node || 'unknown';
+                const nodeName = node.name || '';
+                const condition = node.condition || '';
+                const hasChildren = node.children && node.children.length > 0;
+                const comment = node.comment === true;
+                const value = node.value?.value || '';
+                const snippet = node.snippet || '';
+                const action = node.action || '';
+                const key = node.key || '';
+                
+                html += `
+                    <div class="flow-node">
+                        <div class="node-card ${comment ? 'commented' : ''} ${nodeType}" onclick="toggleNodeDetails(this)">
+                            <div class="node-header">
+                                <span class="node-badge ${nodeType.replace(/[^a-z]/g, '_')}">${nodeType}</span>
+                                ${nodeName ? `<span class="node-name">📌 ${escapeHtml(nodeName)}</span>` : ''}
+                                ${snippet ? `<span class="node-name">📎 ${escapeHtml(snippet)}</span>` : ''}
+                                ${action ? `<span class="node-name">⚡ ${escapeHtml(action)}</span>` : ''}
+                                ${key ? `<span class="node-name">🔄 ${escapeHtml(key)}</span>` : ''}
+                            </div>
+                            ${condition ? `<div class="node-condition">🔍 if: ${escapeHtml(condition)}</div>` : ''}
+                            ${value ? `<div class="node-condition">📝 = ${escapeHtml(String(value).substring(0, 100))}</div>` : ''}
+                            <div class="node-details">
+                                ${renderNodeDetails(node)}
+                            </div>
+                        </div>
+                `;
+                
+                if (hasChildren) {
+                    html += `<div class="children-container">${renderFlowchart(node.children, depth + 1)}</div>`;
+                } else if (idx < nodes.length - 1) {
+                    html += `<div class="arrow-down">▼</div>`;
+                }
+                
+                html += `</div>`;
+            });
+            html += '</div>';
+            return html;
+        }
+
+        function renderNodeDetails(node) {
+            const details = [];
+            if (node.value) details.push(`<strong>Value:</strong> ${escapeHtml(JSON.stringify(node.value))}`);
+            if (node.message) details.push(`<strong>Message:</strong> ${escapeHtml(JSON.stringify(node.message))}`);
+            if (node.table) details.push(`<strong>Table:</strong> ${escapeHtml(JSON.stringify(node.table))}`);
+            if (node.database) details.push(`<strong>Database:</strong> ${escapeHtml(node.database)}`);
+            if (node.endpoint) details.push(`<strong>Endpoint:</strong> ${escapeHtml(node.endpoint)}`);
+            if (node.variable) details.push(`<strong>Variable:</strong> ${escapeHtml(node.variable)}`);
+            if (node.format) details.push(`<strong>Format:</strong> ${escapeHtml(node.format)}`);
+            if (node.type) details.push(`<strong>Type:</strong> ${escapeHtml(node.type)}`);
+            return details.length ? `<div style="margin-top: 0.5rem;">${details.join('<br>')}</div>` : '<em>No additional details</em>';
+        }
+
+        function renderSnippets(snippets) {
+            const snippetNames = Object.keys(snippets);
+            if (snippetNames.length === 0) return '<div>No snippets found</div>';
+            
+            let html = '<div class="tabs" style="margin-bottom: 1rem;">';
+            snippetNames.forEach((name, idx) => {
+                html += `<button class="tab-btn ${idx === 0 ? 'active' : ''}" onclick="switchSnippetTab('${name.replace(/[^a-z0-9]/gi, '_')}', this)">📎 ${escapeHtml(name)}</button>`;
+            });
+            html += '</div>';
+            
+            snippetNames.forEach((name, idx) => {
+                html += `<div id="snippet-${name.replace(/[^a-z0-9]/gi, '_')}" class="tab-content ${idx === 0 ? 'active' : ''}">
+                            ${renderFlowchart(snippets[name])}
+                         </div>`;
+            });
+            
+            return html;
+        }
+
+        function renderConfig(config) {
+            if (!config.length) return '<div>No configuration found</div>';
+            
+            return `
+                <div class="config-panel">
+                    ${config.map(cfg => `
+                        <div class="config-item">
+                            <div>
+                                <strong>${escapeHtml(cfg.label || cfg.key)}</strong><br>
+                                <small>${escapeHtml(cfg.hints || '')}</small>
+                            </div>
+                            <div>
+                                <span class="node-badge initialize_variable">${escapeHtml(cfg.type || cfg.datatype || 'string')}</span>
+                                ${cfg.default ? `<span class="node-badge" style="background: var(--success);">default: ${escapeHtml(cfg.default)}</span>` : ''}
+                                ${cfg.required === 'yes' ? `<span class="node-badge" style="background: var(--error);">required</span>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function switchTab(index) {
+            document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+                if (i === index) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach((content, i) => {
+                if (i === index) content.classList.add('active');
+                else content.classList.remove('active');
+            });
+        }
+
+        function switchSnippetTab(snippetId, btn) {
+            document.querySelectorAll('#tabsContainer + div .tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('[id^="snippet-"]').forEach(el => el.classList.remove('active'));
+            document.getElementById(`snippet-${snippetId}`).classList.add('active');
+        }
+
+        function toggleNodeDetails(el) {
+            el.classList.toggle('expanded');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed; bottom: 20px; right: 20px;
+                background: ${type === 'error' ? '#ff477e' : '#00e676'};
+                color: #0a0e1a; padding: 12px 20px;
+                border-radius: 12px; font-weight: 500;
+                z-index: 1000; animation: fadeInUp 0.3s ease;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Drag & Drop
+        const dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        // Load sample on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Add sample file
+            loadedFiles.push({
+                name: "DB_Dump.json",
+                data: sampleFiles.DB_Dump.json,
+                parsed: parseWorkflowData(sampleFiles.DB_Dump.json)
+            });
+            loadedFiles.push({
+                name: "12Hrs_to_24Hrs_time_format.json",
+                data: sampleFiles["12Hrs_to_24Hrs_time_format.json"],
+                parsed: parseWorkflowData(sampleFiles["12Hrs_to_24Hrs_time_format.json"])
+            });
+            updateFileList();
+            displayWorkflow(0);
+        });
+    </script>
+</body>
+</html>
